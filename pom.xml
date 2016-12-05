@@ -2179,6 +2179,8 @@
                             <include>**/*Test.java</include>
                         </includes>
                         <argLine>${maven.test.jvmargs}</argLine>
+                        <!--<testFailureIgnore>true</testFailureIgnore>-->
+
                     </configuration>
                 </plugin>
                 <plugin>

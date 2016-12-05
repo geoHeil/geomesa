@@ -10,11 +10,12 @@
 package org.locationtech.geomesa.accumulo.data
 
 import java.io.Serializable
+import java.lang.reflect.InvocationTargetException
 import java.util.{Collections, Map => JMap}
 
 import org.apache.accumulo.core.client.ClientConfiguration.ClientProperty
 import org.apache.accumulo.core.client.mock.{MockConnector, MockInstance}
-import org.apache.accumulo.core.client.security.tokens.PasswordToken
+import org.apache.accumulo.core.client.security.tokens.{AuthenticationToken, PasswordToken}
 import org.apache.accumulo.core.client.{ClientConfiguration, Connector, ZooKeeperInstance}
 import org.geotools.data.DataAccessFactory.Param
 import org.geotools.data.{DataStoreFactorySpi, Parameter}
@@ -95,12 +96,47 @@ object AccumuloDataStoreFactory {
       p.lookupOpt[T](params).getOrElse(p.getDefaultValue.asInstanceOf[T])
   }
 
+
+
   def buildAccumuloConnector(params: JMap[String,Serializable], useMock: Boolean): Connector = {
     val instance = instanceIdParam.lookup[String](params)
     val user = userParam.lookup[String](params)
     val password = passwordParam.lookup[String](params)
+    val useToken = useTokenParam.lookup[Boolean](params)
+    val keytabPath = keytabPathParam.lookup[String](params)
 
-    val authToken = new PasswordToken(password.getBytes("UTF-8"))
+    var usingKerberos = false
+
+    // Build authenticaton token according to how we are authenticating
+    val authToken : AuthenticationToken = if (password != null) {
+      new PasswordToken(password.getBytes("UTF-8"))
+    } else if (useToken) {
+      usingKerberos = true
+      // Get ctor for principal only
+      val ctor = Class.forName("org.apache.accumulo.core.client.security.tokens.KerberosToken")
+        .getConstructor(classOf[String])
+      try {
+        (ctor.newInstance(user)).asInstanceOf[AuthenticationToken]
+      } catch {
+        // Remove reflection exception wrapper
+        case ite: InvocationTargetException => throw ite.getCause
+      }
+    } else if (keytabPath != null) {
+      usingKerberos = true
+      // Get ctor for principal, keytab path and replace current user
+      val ctor = Class.forName("org.apache.accumulo.core.client.security.tokens.KerberosToken")
+        .getConstructor(classOf[String], classOf[java.io.File], classOf[Boolean])
+     try {
+       // Remove reflection exception wrapper
+      (ctor.newInstance(user, new java.io.File(keytabPath), java.lang.Boolean.TRUE)).asInstanceOf[AuthenticationToken]
+     } catch {
+       case ite: InvocationTargetException => throw ite.getCause
+     }
+    } else {
+      // Parameter validation should ensure never get here
+      null
+    }
+
     if (useMock) {
       new MockInstance(instance).getConnector(user, authToken)
     } else {
@@ -115,7 +151,15 @@ object AccumuloDataStoreFactory {
         new ClientConfiguration().withInstance(instance).withZkHosts(zookeepers)
       }
 
-      new ZooKeeperInstance(clientConfiguration).getConnector(user, authToken)
+      if (usingKerberos) {
+        // Use reflection to enable SASL. This shouldn't be required if Accumulo client.conf is set appropriately,
+        // but it doesn't seem to work for me
+        val conf = new org.apache.accumulo.core.client.ClientConfiguration()
+        val withSasl = conf.getClass().getMethod("withSasl", classOf[Boolean])
+        new ZooKeeperInstance(withSasl.invoke(conf, java.lang.Boolean.TRUE).asInstanceOf[ClientConfiguration]).getConnector(user, authToken)
+      } else {
+        new ZooKeeperInstance(clientConfiguration).getConnector(user, authToken)
+      }
     }
   }
 
@@ -179,8 +223,31 @@ object AccumuloDataStoreFactory {
     security.getAuthorizationsProvider(params, auths)
   }
 
-  def canProcess(params: JMap[String,Serializable]): Boolean =
-    params.containsKey(instanceIdParam.key) || params.containsKey(connParam.key)
+  // Kerberos is only available in Accumulo >= 1.7.
+  // Probe for whether part of the API is available
+  // Note: doesn't confirm whether correctly configured for Kerberos e.g. core-site.xml on CLASSPATH
+  def isKerberosAvailable() = {
+    try {
+      val conf = new org.apache.accumulo.core.client.ClientConfiguration()
+      val withSasl = conf.getClass().getMethod("withSasl", classOf[Boolean])
+      true
+    }
+    catch {
+      case nsme: NoSuchMethodException => false
+    }
+  }
+
+  def canProcess(params: JMap[String,Serializable]): Boolean = {
+    val instanceIdOrConnection = params.containsKey(instanceIdParam.key) || params.containsKey(connParam.key)
+    val hasPassword = params.containsKey(passwordParam.key)     // mutually exclusive with useToken & keytabPath
+    val hasUseToken = params.containsKey(useTokenParam.key)     // mutually exclusive with password & keytabPath
+    val hasKeytabPath = params.containsKey(keytabPathParam.key) // mutually exclusive with password & useToken
+    instanceIdOrConnection && (
+      (!hasPassword && !hasUseToken && !hasKeytabPath) || // included for backwards compatibility, if connector provided
+      (hasPassword && !hasUseToken && !hasKeytabPath) ||
+      ( (!hasPassword && hasUseToken && !hasKeytabPath) && isKerberosAvailable() ) ||
+      ( (!hasPassword && !hasUseToken && hasKeytabPath) && isKerberosAvailable() ))
+  }
 }
 
 // keep params in a separate object so we don't require accumulo classes on the build path to access it
@@ -189,7 +256,9 @@ object AccumuloDataStoreParams {
   val instanceIdParam        = new Param("instanceId", classOf[String], "Accumulo Instance ID", true)
   val zookeepersParam        = new Param("zookeepers", classOf[String], "Zookeepers", true)
   val userParam              = new Param("user", classOf[String], "Accumulo user", true)
-  val passwordParam          = new Param("password", classOf[String], "Accumulo password", true, null, Collections.singletonMap(Parameter.IS_PASSWORD, java.lang.Boolean.TRUE))
+  val passwordParam          = new Param("password", classOf[String], "Accumulo password", false, null, Collections.singletonMap(Parameter.IS_PASSWORD, java.lang.Boolean.TRUE))
+  val useTokenParam          = new Param("useToken", classOf[java.lang.Boolean], "Use existing Kerberos token", false, false)
+  val keytabPathParam        = new Param("keytabPath", classOf[String], "Path to keytab file", false)
   val authsParam             = org.locationtech.geomesa.security.authsParam
   val visibilityParam        = new Param("visibilities", classOf[String], "Default Accumulo visibilities to apply to all written data", false)
   val tableNameParam         = new Param("tableName", classOf[String], "Accumulo catalog table name", true)
