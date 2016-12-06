@@ -241,10 +241,19 @@ object AccumuloDataStoreFactory extends com.typesafe.scalalogging.LazyLogging {
 
   def canProcess(params: JMap[String,Serializable]): Boolean = {
     logger.debug(params.toString)
+
     val instanceIdOrConnection = params.containsKey(instanceIdParam.key) || params.containsKey(connParam.key)
-    val hasPassword = params.containsKey(passwordParam.key)     // mutually exclusive with useToken & keytabPath
-    val hasUseToken = params.containsKey(useTokenParam.key)     // mutually exclusive with password & keytabPath
-    val hasKeytabPath = params.containsKey(keytabPathParam.key) // mutually exclusive with password & useToken
+
+    // Mutually exclusive with useToken & keytabPath
+    val hasPassword = params.containsKey(passwordParam.key) && passwordParam.lookup[String](params) != null
+
+    // Mutually exclusive with password & keytabPath
+    // TODO: handle case when useTokenParam is explicitly set to false
+    val hasUseToken = params.containsKey(useTokenParam.key) && useTokenParam.lookup[Boolean](params) != false
+
+    // Mutually exclusive with password & useToken
+    val hasKeytabPath = params.containsKey(keytabPathParam.key) && keytabPathParam.lookup[String](params) != null
+
     instanceIdOrConnection && (
       (!hasPassword && !hasUseToken && !hasKeytabPath) || // included for backwards compatibility, if connector provided
       (hasPassword && !hasUseToken && !hasKeytabPath) ||

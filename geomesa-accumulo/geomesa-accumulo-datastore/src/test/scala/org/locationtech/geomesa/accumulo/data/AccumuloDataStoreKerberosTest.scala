@@ -35,6 +35,18 @@ class AccumuloDataStoreKerberosTest extends Specification {
       ds must not(beNull)
     }
 
+    "create a token authenticated store with nulls" in {
+      val ds = DataStoreFinder.getDataStore(Map(
+        "useMock" -> "true",
+        "instanceId" -> "my-instance",
+        "user" -> "me",
+        "password" -> null,
+        "useToken" -> true,
+        "keytabPath" -> null,
+        "tableName" -> "tableName").asJava).asInstanceOf[AccumuloDataStore]
+      ds must not(beNull)
+    }
+
     "create a keytab authenticated store" in {
       val ds = DataStoreFinder.getDataStore(Map(
         "useMock" -> "true",
