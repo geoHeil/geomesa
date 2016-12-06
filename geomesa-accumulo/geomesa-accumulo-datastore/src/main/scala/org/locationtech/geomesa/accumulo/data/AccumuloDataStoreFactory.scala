@@ -59,6 +59,8 @@ class AccumuloDataStoreFactory extends DataStoreFactorySpi {
       zookeepersParam,
       userParam,
       passwordParam,
+      useTokenParam,
+      keytabPathParam,
       tableNameParam,
       authsParam,
       visibilityParam,
@@ -80,7 +82,7 @@ class AccumuloDataStoreFactory extends DataStoreFactorySpi {
   override def getImplementationHints = null
 }
 
-object AccumuloDataStoreFactory {
+object AccumuloDataStoreFactory extends com.typesafe.scalalogging.LazyLogging {
 
   import org.locationtech.geomesa.accumulo.data.AccumuloDataStoreParams._
 
@@ -238,6 +240,7 @@ object AccumuloDataStoreFactory {
   }
 
   def canProcess(params: JMap[String,Serializable]): Boolean = {
+    logger.debug(params.toString)
     val instanceIdOrConnection = params.containsKey(instanceIdParam.key) || params.containsKey(connParam.key)
     val hasPassword = params.containsKey(passwordParam.key)     // mutually exclusive with useToken & keytabPath
     val hasUseToken = params.containsKey(useTokenParam.key)     // mutually exclusive with password & keytabPath
