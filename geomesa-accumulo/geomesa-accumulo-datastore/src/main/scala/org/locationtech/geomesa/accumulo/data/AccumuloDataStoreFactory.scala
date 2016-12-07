@@ -82,7 +82,7 @@ class AccumuloDataStoreFactory extends DataStoreFactorySpi {
   override def getImplementationHints = null
 }
 
-object AccumuloDataStoreFactory extends com.typesafe.scalalogging.LazyLogging {
+object AccumuloDataStoreFactory {
 
   import org.locationtech.geomesa.accumulo.data.AccumuloDataStoreParams._
 
@@ -158,7 +158,7 @@ object AccumuloDataStoreFactory extends com.typesafe.scalalogging.LazyLogging {
         // but it doesn't seem to work for me
         val conf = new org.apache.accumulo.core.client.ClientConfiguration()
         val withSasl = conf.getClass().getMethod("withSasl", classOf[Boolean])
-        new ZooKeeperInstance(withSasl.invoke(conf, java.lang.Boolean.TRUE).asInstanceOf[ClientConfiguration]).getConnector(user, authToken)
+        new ZooKeeperInstance(withSasl.invoke(clientConfiguration, java.lang.Boolean.TRUE).asInstanceOf[ClientConfiguration]).getConnector(user, authToken)
       } else {
         new ZooKeeperInstance(clientConfiguration).getConnector(user, authToken)
       }
@@ -240,7 +240,6 @@ object AccumuloDataStoreFactory extends com.typesafe.scalalogging.LazyLogging {
   }
 
   def canProcess(params: JMap[String,Serializable]): Boolean = {
-    logger.debug(params.toString)
 
     val instanceIdOrConnection = params.containsKey(instanceIdParam.key) || params.containsKey(connParam.key)
 
