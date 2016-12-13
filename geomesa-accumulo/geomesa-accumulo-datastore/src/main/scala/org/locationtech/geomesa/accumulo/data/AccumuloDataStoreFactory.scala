@@ -1,5 +1,6 @@
 /***********************************************************************
 * Copyright (c) 2013-2016 Commonwealth Computer Research, Inc.
+* Portions Crown Copyright (c) 2016 Dstl
 * All rights reserved. This program and the accompanying materials
 * are made available under the terms of the Apache License, Version 2.0
 * which accompanies this distribution and is available at
@@ -140,7 +141,12 @@ object AccumuloDataStoreFactory {
     }
 
     if (useMock) {
-      new MockInstance(instance).getConnector(user, authToken)
+      if(!usingKerberos) {
+        new MockInstance(instance).getConnector(user, authToken)
+      } else {
+        // MockInstance doesn't seem to support Kerberos, so make up an authToken
+        new MockInstance(instance).getConnector(user, new PasswordToken("mock".getBytes("UTF-8")))
+      }
     } else {
       val zookeepers = zookeepersParam.lookup[String](params)
       // NB: For those wanting to set this via JAVA_OPTS, this key is "instance.zookeeper.timeout" in Accumulo 1.6.x.
