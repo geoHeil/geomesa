@@ -9,6 +9,7 @@
 package org.locationtech.geomesa.accumulo.data
 
 import org.locationtech.geomesa.accumulo.TestWithKerberos
+import org.locationtech.geomesa.accumulo.data.AccumuloDataStoreFactory
 
 import org.geotools.data.DataStoreFinder
 
@@ -44,7 +45,7 @@ class AccumuloDataStoreKerberosTest extends Specification with TestWithKerberos 
         "user" -> "user@EXAMPLE.COM",
         "useToken" -> true,
         "tableName" -> "tableName").asJava).asInstanceOf[AccumuloDataStore]
-      ds must not(beNull)
+      if (AccumuloDataStoreFactory.isKerberosAvailable) ds must not(beNull) else ds must (beNull)
     }
 
     "create a token authenticated store with nulls" in {
@@ -57,7 +58,7 @@ class AccumuloDataStoreKerberosTest extends Specification with TestWithKerberos 
         "useToken" -> true,
         "keytabPath" -> null,
         "tableName" -> "tableName").asJava).asInstanceOf[AccumuloDataStore]
-      ds must not(beNull)
+      if (AccumuloDataStoreFactory.isKerberosAvailable) ds must not(beNull) else ds must (beNull)
     }
 
     "create a keytab authenticated store" in {
@@ -67,7 +68,7 @@ class AccumuloDataStoreKerberosTest extends Specification with TestWithKerberos 
         "user" -> "user@EXAMPLE.COM",
         "keytabPath" -> keytabFilename,
         "tableName" -> "tableName").asJava).asInstanceOf[AccumuloDataStore]
-      ds must not(beNull)
+      if (AccumuloDataStoreFactory.isKerberosAvailable) ds must not(beNull) else ds must (beNull)
     }
 
     "not accept password and token" in {
@@ -114,6 +115,7 @@ class AccumuloDataStoreKerberosTest extends Specification with TestWithKerberos 
         "tableName" -> "tableName").asJava).asInstanceOf[AccumuloDataStore]
       ds must (beNull)
     }
+
   }
 
 }
