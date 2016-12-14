@@ -2179,7 +2179,6 @@
                             <include>**/*Test.java</include>
                         </includes>
                         <argLine>${maven.test.jvmargs}</argLine>
-                        <skipTests>true</skipTests>
 
                     </configuration>
                 </plugin>

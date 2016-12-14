@@ -8,15 +8,19 @@
 
 package org.locationtech.geomesa.accumulo.data
 
+import org.locationtech.geomesa.accumulo.TestWithKerberos
+
 import org.geotools.data.DataStoreFinder
+
+import org.specs2.runner.JUnitRunner
+import org.junit.runner.RunWith
+
 import org.specs2.mutable.Specification
 
 import scala.collection.JavaConverters._
 
-import org.locationtech.geomesa.accumulo.TestWithKerberos
-
+@RunWith(classOf[JUnitRunner])
 class AccumuloDataStoreKerberosTest extends Specification with TestWithKerberos {
-
 
   "AccumuloDataStore" should {
 
