@@ -90,17 +90,6 @@ object AccumuloDataStoreFactory {
   val DISPLAY_NAME = "Accumulo (GeoMesa)"
   val DESCRIPTION = "Apache Accumulo\u2122 distributed key/value store"
 
-  val EmptyParams: JMap[String, Serializable] = new HashMap[String, Serializable]()
-
-  implicit class RichParam(val p: Param) extends AnyVal {
-    def lookup[T](params: JMap[String, Serializable]): T = p.lookUp(params).asInstanceOf[T]
-    def lookupOpt[T](params: JMap[String, Serializable]): Option[T] = Option(p.lookup[T](params))
-    def lookupWithDefault[T](params: JMap[String, Serializable]): T =
-      p.lookupOpt[T](params).getOrElse(p.getDefaultValue.asInstanceOf[T])
-  }
-
-
-
   def buildAccumuloConnector(params: JMap[String,Serializable], useMock: Boolean): Connector = {
     val instance = instanceIdParam.lookup[String](params)
     val user = userParam.lookup[String](params)
